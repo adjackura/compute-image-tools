@@ -12,7 +12,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
-// instance_inventory pretty prints out an instances inventory data.
+// osconfig_agent interacts with the osconfig api.
 package main
 
 import (
