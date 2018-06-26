@@ -122,34 +122,35 @@ func wuaUpdates(query string) ([]PkgInfo, error) {
 
 	updts := updtsRaw.ToIDispatch()
 
-	enumRaw, err := updts.GetProperty("_NewEnum")
+	count, err := updts.GetProperty("Count")
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("GetProperty Count: %v", err)
 	}
-	defer enumRaw.Clear()
+	defer count.Clear()
+	updtCnt, _ := count.Value().(int32)
 
-	enum, err := enumRaw.ToIUnknown().IEnumVARIANT(ole.IID_IEnumVariant)
-	if err != nil {
-		return nil, err
+	if updtCnt == 0 {
+		return nil, nil
 	}
-	if enum == nil {
-		return nil, fmt.Errorf("can't get IEnumVARIANT, enum is nil")
-	}
-	defer enum.Release()
+
+	logger.Infof("%d updates available", updtCnt)
 
 	var updates []PkgInfo
-	for updtRaw, length, err := enum.Next(1); length > 0; updtRaw, length, err = enum.Next(1) {
+	for i := 0; i < int(updtCnt); i++ {
+		updtRaw, err := updts.GetProperty("Item", i)
 		if err != nil {
 			return nil, err
 		}
+		defer updtRaw.Clear()
+
 		updt := updtRaw.ToIDispatch()
 		defer updt.Release()
 
-		titleRaw, err := updt.GetProperty("Title")
+		title, err := updt.GetProperty("Title")
 		if err != nil {
 			return nil, err
 		}
-		name := titleRaw.ToString()
+		name := title.ToString()
 		ver := "unknown"
 		// Match (KB4052623) or just KB4052623 for Defender patches.
 		if start := strings.Index(name, "(KB"); start != -1 {

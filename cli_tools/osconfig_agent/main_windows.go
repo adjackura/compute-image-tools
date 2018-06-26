@@ -75,6 +75,8 @@ func installWUAUpdates(query string) error {
 			defer updtRaw.Clear()
 
 			updt := updtRaw.ToIDispatch()
+			defer updt.Release()
+
 			title, err := updt.GetProperty("Title")
 			if err != nil {
 				return err
