@@ -89,6 +89,11 @@ func googetUpdates() ([]PkgInfo, error) {
 	return pkgs, nil
 }
 
+type (
+	IUpdateSession    = *ole.IDispatch
+	IUpdateCollection = *ole.VARIANT
+)
+
 // wuaUpdates queries the Windows Update Agent API searcher with the provided query.
 func wuaUpdates(query string) ([]PkgInfo, error) {
 	connection := &ole.Connection{Object: nil}
@@ -103,39 +108,19 @@ func wuaUpdates(query string) ([]PkgInfo, error) {
 	}
 	defer unknown.Release()
 
-	mus, err := unknown.QueryInterface(ole.IID_IDispatch)
+	session, err := unknown.QueryInterface(ole.IID_IDispatch)
 	if err != nil {
 		return nil, err
 	}
-	defer mus.Release()
+	defer session.Release()
 
-	// returns IUpdateSearcher
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386515(v=vs.85).aspx
-	searcherRaw, err := mus.CallMethod("CreateUpdateSearcher")
+	updtsRaw, err := GetWUAUpdates(session, query)
 	if err != nil {
 		return nil, err
 	}
-	searcher := searcherRaw.ToIDispatch()
-	defer searcherRaw.Clear()
-
-	logger.Infof("Querying Windows Update Agent Search with query %q.", query)
-	// returns ISearchResult
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386077(v=vs.85).aspx
-	resultRaw, err := searcher.CallMethod("Search", query)
-	if err != nil {
-		return nil, err
-	}
-	result := resultRaw.ToIDispatch()
-	defer resultRaw.Clear()
-
-	// returns IUpdateCollection
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386107(v=vs.85).aspx
-	updtsRaw, err := result.GetProperty("Updates")
-	if err != nil {
-		return nil, err
-	}
-	updts := updtsRaw.ToIDispatch()
 	defer updtsRaw.Clear()
+
+	updts := updtsRaw.ToIDispatch()
 
 	enumRaw, err := updts.GetProperty("_NewEnum")
 	if err != nil {
@@ -180,6 +165,77 @@ func wuaUpdates(query string) ([]PkgInfo, error) {
 	}
 
 	return updates, nil
+}
+
+// DownloadWUAUpdates downloads all updates in a IUpdateCollection
+func DownloadWUAUpdates(session IUpdateSession, updates IUpdateCollection) error {
+	// returns IUpdateDownloader
+	// https://docs.microsoft.com/en-us/windows/desktop/api/wuapi/nn-wuapi-iupdatedownloader
+	downloaderRaw, err := session.CallMethod("CreateUpdateDownloader")
+	if err != nil {
+		return fmt.Errorf("error calling method CreateUpdateDownloader on IUpdateSession: %v", err)
+	}
+	downloader := downloaderRaw.ToIDispatch()
+	defer downloaderRaw.Clear()
+
+	if _, err := downloader.PutProperty("Updates", updates); err != nil {
+		return fmt.Errorf("error calling PutProperty Updates on IUpdateDownloader: %v", err)
+	}
+
+	logger.Infof("Downloading updates")
+	if _, err := downloader.CallMethod("Download"); err != nil {
+		return fmt.Errorf("error calling method Download on IUpdateDownloader: %v", err)
+	}
+	return nil
+}
+
+// InstallWUAUpdates installs all updates in a IUpdateCollection
+func InstallWUAUpdates(session IUpdateSession, updates IUpdateCollection) error {
+	// returns IUpdateInstaller
+	// https://docs.microsoft.com/en-us/windows/desktop/api/wuapi/nf-wuapi-iupdatesession-createupdateinstaller
+	installerRaw, err := session.CallMethod("CreateUpdateInstaller")
+	if err != nil {
+		return fmt.Errorf("error calling method CreateUpdateInstaller on IUpdateSession: %v", err)
+	}
+	installer := installerRaw.ToIDispatch()
+	defer installerRaw.Clear()
+
+	if _, err := installer.PutProperty("Updates", updates); err != nil {
+		return fmt.Errorf("error calling PutProperty Updates on IUpdateInstaller: %v", err)
+	}
+
+	logger.Infof("Installing updates")
+	if _, err := installer.CallMethod("Install", updates); err != nil {
+		return fmt.Errorf("error calling method Install on IUpdateInstaller: %v", err)
+	}
+	return nil
+}
+
+// GetWUAUpdates queries the Windows Update Agent API searcher with the provided query
+// and returns a IUpdateCollection.
+func GetWUAUpdates(session IUpdateSession, query string) (IUpdateCollection, error) {
+	// returns IUpdateSearcher
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386515(v=vs.85).aspx
+	searcherRaw, err := session.CallMethod("CreateUpdateSearcher")
+	if err != nil {
+		return nil, err
+	}
+	searcher := searcherRaw.ToIDispatch()
+	defer searcherRaw.Clear()
+
+	logger.Infof("Querying Windows Update Agent Search with query %q.", query)
+	// returns ISearchResult
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386077(v=vs.85).aspx
+	resultRaw, err := searcher.CallMethod("Search", query)
+	if err != nil {
+		return nil, fmt.Errorf("error calling method Search on IUpdateSearcher: %v", err)
+	}
+	result := resultRaw.ToIDispatch()
+	defer resultRaw.Clear()
+
+	// returns IUpdateCollection
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386107(v=vs.85).aspx
+	return result.GetProperty("Updates")
 }
 
 // GetInstalledPackages gets all installed GooGet packages and Windows updates.
