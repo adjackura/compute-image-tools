@@ -115,14 +115,6 @@ func wuaUpdates(query string) ([]PkgInfo, error) {
 	}
 	defer session.Release()
 
-	// returns IUpdateSearcher
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa386515(v=vs.85).aspx
-	searcherRaw, err := session.CallMethod("CreateUpdateSearcher")
-	if err != nil {
-		return nil, err
-	}
-	defer session.Release()
-
 	updtsRaw, err := GetWUAUpdateCollection(session, query)
 	if err != nil {
 		return nil, err
