@@ -31,6 +31,7 @@ var (
 	// apt-get
 	aptGet               = "/usr/bin/apt-get"
 	aptGetUpdateArgs     = []string{"update"}
+	aptGetUpgradeArgs    = []string{"upgrade", "-y"}
 	aptGetUpgradableArgs = []string{"upgrade", "--just-print"}
 
 	// rpmquery
@@ -39,10 +40,12 @@ var (
 
 	// yum
 	yum                 = "/usr/bin/yum"
+	yumUpdateArgs       = []string{"update", "-y"}
 	yumCheckUpdatesArgs = []string{"check-updates", "--quiet"}
 
 	// zypper
 	zypper                = "/usr/bin/zypper"
+	zypperUpdateArgs      = []string{"update"}
 	zypperListUpdatesArgs = []string{"-q", "list-updates"}
 
 	// gem
@@ -57,6 +60,54 @@ var (
 
 	noarch = osinfo.Architecture("noarch")
 )
+
+// UpdatePackages installs all available package updates for all known system
+// package managers.
+func UpdatePackages() []error {
+	var errs []error
+	if exists(aptGet) {
+		if err := aptUpgrade(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if exists(yum) {
+		if err := yumUpdate(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if exists(zypper) {
+		if err := zypperUpdate(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
+}
+
+func aptUpgrade() error {
+	if _, err := run(exec.Command(aptGet, aptGetUpdateArgs...)); err != nil {
+		return err
+	}
+
+	if _, err := run(exec.Command(aptGet, aptGetUpgradeArgs...)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func yumUpdate() error {
+	if _, err := exec.Command(yum, yumCheckUpdatesArgs...).CombinedOutput(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func zypperUpdate() error {
+	if _, err := run(exec.Command(zypper, zypperListUpdatesArgs...)); err != nil {
+		return err
+	}
+	return nil
+}
 
 // GetPackageUpdates gets all available package updates from any known
 // installed package manager.
@@ -166,7 +217,6 @@ func aptUpdates() ([]PkgInfo, error) {
 }
 
 func yumUpdates() ([]PkgInfo, error) {
-	logger.Infof("Running %q with args %q", yum, yumCheckUpdatesArgs)
 	out, err := exec.Command(yum, yumCheckUpdatesArgs...).CombinedOutput()
 	// Exit code 0 means no updates, 100 means there are updates.
 	if err == nil {
