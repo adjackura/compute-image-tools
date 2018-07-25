@@ -24,6 +24,12 @@ import (
 )
 
 var (
+	AptExists    = exists(aptGet)
+	YumExists    = exists(yum)
+	ZypperExists = exists(zypper)
+	GemExists    = exists(gem)
+	PipExists    = exists(pip)
+
 	// dpkg-query
 	dpkgquery     = "/usr/bin/dpkg-query"
 	dpkgqueryArgs = []string{"-W", "-f", `${Package} ${Architecture} ${Version}\n`}
@@ -65,17 +71,17 @@ var (
 // package managers.
 func UpdatePackages() []error {
 	var errs []error
-	if exists(aptGet) {
+	if AptExists {
 		if err := aptUpgrade(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if exists(yum) {
+	if YumExists {
 		if err := yumUpdate(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if exists(zypper) {
+	if ZypperExists {
 		if err := zypperUpdate(); err != nil {
 			errs = append(errs, err)
 		}
@@ -114,7 +120,7 @@ func zypperUpdate() error {
 func GetPackageUpdates() (map[string][]PkgInfo, []string) {
 	pkgs := map[string][]PkgInfo{}
 	var errs []string
-	if exists(aptGet) {
+	if AptExists {
 		apt, err := aptUpdates()
 		if err != nil {
 			msg := fmt.Sprintf("error getting apt updates: %v", err)
@@ -124,7 +130,7 @@ func GetPackageUpdates() (map[string][]PkgInfo, []string) {
 			pkgs["apt"] = apt
 		}
 	}
-	if exists(yum) {
+	if YumExists {
 		yum, err := yumUpdates()
 		if err != nil {
 			msg := fmt.Sprintf("error getting yum updates: %v", err)
@@ -134,7 +140,7 @@ func GetPackageUpdates() (map[string][]PkgInfo, []string) {
 			pkgs["yum"] = yum
 		}
 	}
-	if exists(zypper) {
+	if ZypperExists {
 		zypper, err := zypperUpdates()
 		if err != nil {
 			msg := fmt.Sprintf("error getting zypper updates: %v", err)
@@ -144,7 +150,7 @@ func GetPackageUpdates() (map[string][]PkgInfo, []string) {
 			pkgs["zypper"] = zypper
 		}
 	}
-	if exists(gem) {
+	if GemExists {
 		gem, err := gemUpdates()
 		if err != nil {
 			msg := fmt.Sprintf("error getting gem updates: %v", err)
@@ -154,7 +160,7 @@ func GetPackageUpdates() (map[string][]PkgInfo, []string) {
 			pkgs["gem"] = gem
 		}
 	}
-	if exists(pip) {
+	if PipExists {
 		pip, err := pipUpdates()
 		if err != nil {
 			msg := fmt.Sprintf("error getting pip updates: %v", err)
