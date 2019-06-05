@@ -42,14 +42,18 @@ type Step struct {
 	Timeout string `json:",omitempty"`
 	timeout time.Duration
 	// Only one of the below fields should exist for each instance of Step.
+	AwaitPatchJobs         *AwaitPatchJobs         `json:",omitempty"`
+	ExecutePatchJobs       *ExecutePatchJobs       `json:",omitempty"`
 	AttachDisks            *AttachDisks            `json:",omitempty"`
 	DetachDisks            *DetachDisks            `json:",omitempty"`
 	CreateDisks            *CreateDisks            `json:",omitempty"`
 	CreateForwardingRules  *CreateForwardingRules  `json:",omitempty"`
 	CreateFirewallRules    *CreateFirewallRules    `json:",omitempty"`
 	CreateImages           *CreateImages           `json:",omitempty"`
+	CreateMachineImages    *CreateMachineImages    `json:",omitempty"`
 	CreateInstances        *CreateInstances        `json:",omitempty"`
 	CreateNetworks         *CreateNetworks         `json:",omitempty"`
+	CreateSnapshots        *CreateSnapshots        `json:",omitempty"`
 	CreateSubnetworks      *CreateSubnetworks      `json:",omitempty"`
 	CreateTargetInstances  *CreateTargetInstances  `json:",omitempty"`
 	CopyGCSObjects         *CopyGCSObjects         `json:",omitempty"`
@@ -73,6 +77,14 @@ func NewStep(name string, w *Workflow, timeout time.Duration) *Step {
 func (s *Step) stepImpl() (stepImpl, dErr) {
 	var result stepImpl
 	matchCount := 0
+	if s.AwaitPatchJobs != nil {
+		matchCount++
+		result = s.AwaitPatchJobs
+	}
+	if s.ExecutePatchJobs != nil {
+		matchCount++
+		result = s.ExecutePatchJobs
+	}
 	if s.AttachDisks != nil {
 		matchCount++
 		result = s.AttachDisks
@@ -97,6 +109,10 @@ func (s *Step) stepImpl() (stepImpl, dErr) {
 		matchCount++
 		result = s.CreateImages
 	}
+	if s.CreateMachineImages != nil {
+		matchCount++
+		result = s.CreateMachineImages
+	}
 	if s.CreateInstances != nil {
 		matchCount++
 		result = s.CreateInstances
@@ -104,6 +120,10 @@ func (s *Step) stepImpl() (stepImpl, dErr) {
 	if s.CreateNetworks != nil {
 		matchCount++
 		result = s.CreateNetworks
+	}
+	if s.CreateSnapshots != nil {
+		matchCount++
+		result = s.CreateSnapshots
 	}
 	if s.CreateSubnetworks != nil {
 		matchCount++

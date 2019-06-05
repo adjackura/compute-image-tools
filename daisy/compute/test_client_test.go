@@ -52,6 +52,7 @@ func TestTestClient(t *testing.T) {
 		{"create image", func() { c.CreateImage("a", &compute.Image{}) }, "/a/global/images?alt=json&prettyPrint=false"},
 		{"create instance", func() { c.CreateInstance("a", "b", &compute.Instance{}) }, "/a/zones/b/instances?alt=json&prettyPrint=false"},
 		{"create network", func() { c.CreateNetwork("a", &compute.Network{}) }, "/a/global/networks?alt=json&prettyPrint=false"},
+		{"create snapshot", func() { c.CreateSnapshot("a", "b", "c", &compute.Snapshot{}) }, "/a/zones/b/disks/c/createSnapshot?alt=json&prettyPrint=false"},
 		{"create subnetwork", func() { c.CreateSubnetwork("a", "b", &compute.Subnetwork{}) }, "/a/regions/b/subnetworks?alt=json&prettyPrint=false"},
 		{"instances start", func() { c.StartInstance("a", "b", "c") }, "/a/zones/b/instances/c/start?alt=json&prettyPrint=false"},
 		{"instances stop", func() { c.StopInstance("a", "b", "c") }, "/a/zones/b/instances/c/stop?alt=json&prettyPrint=false"},
@@ -78,7 +79,9 @@ func TestTestClient(t *testing.T) {
 		{"get license", func() { c.GetLicense("a", "b") }, "/a/global/licenses/b?alt=json&prettyPrint=false"},
 		{"get network", func() { c.GetNetwork("a", "b") }, "/a/global/networks/b?alt=json&prettyPrint=false"},
 		{"list networks", func() { c.ListNetworks("a", listOpts...) }, "/a/global/networks?alt=json&filter=foo&orderBy=foo&pageToken=&prettyPrint=false"},
+		{"get snapshot", func() { c.GetSnapshot("a", "b") }, "/a/global/snapshots/b?alt=json&prettyPrint=false"},
 		{"get subnetwork", func() { c.GetSubnetwork("a", "b", "c") }, "/a/regions/b/subnetworks/c?alt=json&prettyPrint=false"},
+		{"list snapshots", func() { c.ListSnapshots("a", listOpts...) }, "/a/global/snapshots?alt=json&pageToken=&prettyPrint=false"},
 		{"list subnetworks", func() { c.ListSubnetworks("a", "b", listOpts...) }, "/a/regions/b/subnetworks?alt=json&filter=foo&orderBy=foo&pageToken=&prettyPrint=false"},
 		{"get disk", func() { c.GetDisk("a", "b", "c") }, "/a/zones/b/disks/c?alt=json&prettyPrint=false"},
 		{"list disks", func() { c.ListDisks("a", "b", listOpts...) }, "/a/zones/b/disks?alt=json&filter=foo&orderBy=foo&pageToken=&prettyPrint=false"},
@@ -127,6 +130,7 @@ func TestTestClient(t *testing.T) {
 	c.CreateImageFn = func(_ string, _ *compute.Image) error { fakeCalled = true; return nil }
 	c.CreateInstanceFn = func(_, _ string, _ *compute.Instance) error { fakeCalled = true; return nil }
 	c.CreateNetworkFn = func(_ string, _ *compute.Network) error { fakeCalled = true; return nil }
+	c.CreateSnapshotFn = func(_, _, _ string, _ *compute.Snapshot) error { fakeCalled = true; return nil }
 	c.CreateSubnetworkFn = func(_, _ string, _ *compute.Subnetwork) error { fakeCalled = true; return nil }
 	c.StartInstanceFn = func(_, _, _ string) error { fakeCalled = true; return nil }
 	c.StopInstanceFn = func(_, _, _ string) error { fakeCalled = true; return nil }
@@ -135,6 +139,7 @@ func TestTestClient(t *testing.T) {
 	c.DeleteImageFn = func(_, _ string) error { fakeCalled = true; return nil }
 	c.DeleteInstanceFn = func(_, _, _ string) error { fakeCalled = true; return nil }
 	c.DeleteNetworkFn = func(_, _ string) error { fakeCalled = true; return nil }
+	c.DeleteSnapshotFn = func(_, _ string) error { fakeCalled = true; return nil }
 	c.DeleteSubnetworkFn = func(_, _, _ string) error { fakeCalled = true; return nil }
 	c.DeprecateImageFn = func(_, _ string, _ *compute.DeprecationStatus) error { fakeCalled = true; return nil }
 	c.GetSerialPortOutputFn = func(_, _, _ string, _, _ int64) (*compute.SerialPortOutput, error) {
@@ -174,7 +179,12 @@ func TestTestClient(t *testing.T) {
 		fakeCalled = true
 		return nil, nil
 	}
+	c.GetSnapshotFn = func(_, _ string) (*compute.Snapshot, error) { fakeCalled = true; return nil, nil }
 	c.GetSubnetworkFn = func(_, _, _ string) (*compute.Subnetwork, error) { fakeCalled = true; return nil, nil }
+	c.ListSnapshotsFn = func(_ string, _ ...ListCallOption) ([]*compute.Snapshot, error) {
+		fakeCalled = true
+		return nil, nil
+	}
 	c.ListSubnetworksFn = func(_, _ string, _ ...ListCallOption) ([]*compute.Subnetwork, error) {
 		fakeCalled = true
 		return nil, nil

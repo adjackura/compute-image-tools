@@ -21,6 +21,7 @@ import (
 	"sync"
 )
 
+// baseResourceRegistry is meant to be used for compute resources.
 type baseResourceRegistry struct {
 	w  *Workflow
 	m  map[string]*Resource
@@ -119,7 +120,7 @@ func (r *baseResourceRegistry) get(name string) (*Resource, bool) {
 	return res, ok
 }
 
-// regCreate registers a Step s as the creator of a resource, res, and identifies the resource by name.
+// regCreate registers a Step s as the creator of a compute resource, res, and identifies the resource by name.
 func (r *baseResourceRegistry) regCreate(name string, res *Resource, s *Step, overWrite bool) dErr {
 	// Check:
 	// - no duplicates known by name
@@ -142,7 +143,7 @@ func (r *baseResourceRegistry) regCreate(name string, res *Resource, s *Step, ov
 	return nil
 }
 
-// regDelete registers a Step s as the deleter of a resource.
+// regDelete registers a Step s as the deleter of a compute resource.
 // The name argument can be a Daisy internal name, or a fully qualified resource URL, e.g. projects/p/global/images/i.
 func (r *baseResourceRegistry) regDelete(name string, s *Step) dErr {
 	// Check:

@@ -16,6 +16,7 @@ package daisy
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/GoogleCloudPlatform/compute-image-tools/daisy/compute"
@@ -30,15 +31,16 @@ var projectCache struct {
 func projectExists(client compute.Client, project string) (bool, dErr) {
 	projectCache.mu.Lock()
 	defer projectCache.mu.Unlock()
-	if strIn(project, projectCache.exists) {
+	p := strings.TrimPrefix(project, "projects/")
+	if strIn(p, projectCache.exists) {
 		return true, nil
 	}
-	if _, err := client.GetProject(project); err != nil {
+	if _, err := client.GetProject(p); err != nil {
 		if apiErr, ok := err.(*googleapi.Error); ok && apiErr.Code == http.StatusNotFound {
 			return false, nil
 		}
 		return false, typedErr(apiError, err)
 	}
-	projectCache.exists = append(projectCache.exists, project)
+	projectCache.exists = append(projectCache.exists, p)
 	return true, nil
 }

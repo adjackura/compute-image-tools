@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	computeAlpha "google.golang.org/api/compute/v0.alpha"
 	computeBeta "google.golang.org/api/compute/v0.beta"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
@@ -38,18 +39,22 @@ type Client interface {
 	CreateForwardingRule(project, region string, fr *compute.ForwardingRule) error
 	CreateFirewallRule(project string, i *compute.Firewall) error
 	CreateImage(project string, i *compute.Image) error
+	CreateMachineImage(project string, i *computeAlpha.MachineImage) error
 	CreateInstance(project, zone string, i *compute.Instance) error
 	CreateNetwork(project string, n *compute.Network) error
+	CreateSnapshot(project, zone, disk string, s *compute.Snapshot) error
 	CreateSubnetwork(project, region string, n *compute.Subnetwork) error
 	CreateTargetInstance(project, zone string, ti *compute.TargetInstance) error
 	DeleteDisk(project, zone, name string) error
 	DeleteForwardingRule(project, region, name string) error
 	DeleteFirewallRule(project, name string) error
 	DeleteImage(project, name string) error
+	DeleteMachineImage(project, name string) error
 	DeleteInstance(project, zone, name string) error
 	StartInstance(project, zone, name string) error
 	StopInstance(project, zone, name string) error
 	DeleteNetwork(project, name string) error
+	DeleteSnapshot(project, name string) error
 	DeleteSubnetwork(project, region, name string) error
 	DeleteTargetInstance(project, zone, name string) error
 	DeprecateImage(project, name string, deprecationstatus *compute.DeprecationStatus) error
@@ -62,9 +67,11 @@ type Client interface {
 	GetForwardingRule(project, region, name string) (*compute.ForwardingRule, error)
 	GetFirewallRule(project, name string) (*compute.Firewall, error)
 	GetImage(project, name string) (*compute.Image, error)
+	GetMachineImage(project, name string) (*computeAlpha.MachineImage, error)
 	GetImageFromFamily(project, family string) (*compute.Image, error)
 	GetLicense(project, name string) (*compute.License, error)
 	GetNetwork(project, name string) (*compute.Network, error)
+	GetSnapshot(project, name string) (*compute.Snapshot, error)
 	GetSubnetwork(project, region, name string) (*compute.Subnetwork, error)
 	GetTargetInstance(project, zone, name string) (*compute.TargetInstance, error)
 	InstanceStatus(project, zone, name string) (string, error)
@@ -77,7 +84,9 @@ type Client interface {
 	ListForwardingRules(project, zone string, opts ...ListCallOption) ([]*compute.ForwardingRule, error)
 	ListFirewallRules(project string, opts ...ListCallOption) ([]*compute.Firewall, error)
 	ListImages(project string, opts ...ListCallOption) ([]*compute.Image, error)
+	ListMachineImages(project string, opts ...ListCallOption) ([]*computeAlpha.MachineImage, error)
 	ListNetworks(project string, opts ...ListCallOption) ([]*compute.Network, error)
+	ListSnapshots(project string, opts ...ListCallOption) ([]*compute.Snapshot, error)
 	ListSubnetworks(project, region string, opts ...ListCallOption) ([]*compute.Subnetwork, error)
 	ListTargetInstances(project, zone string, opts ...ListCallOption) ([]*compute.TargetInstance, error)
 	ResizeDisk(project, zone, disk string, drr *compute.DisksResizeRequest) error
@@ -158,10 +167,11 @@ type clientImpl interface {
 }
 
 type client struct {
-	i       clientImpl
-	hc      *http.Client
-	raw     *compute.Service
-	rawBeta *computeBeta.Service
+	i        clientImpl
+	hc       *http.Client
+	raw      *compute.Service
+	rawBeta  *computeBeta.Service
+	rawAlpha *computeAlpha.Service
 }
 
 // shouldRetryWithWait returns true if the HTTP response / error indicates
@@ -224,7 +234,14 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (Client, error)
 	if ep != "" {
 		rawBetaService.BasePath = ep
 	}
-	c := &client{hc: hc, raw: rawService, rawBeta: rawBetaService}
+	rawAlphaService, err := computeAlpha.New(hc)
+	if err != nil {
+		return nil, fmt.Errorf("alpha compute client: %v", err)
+	}
+	if ep != "" {
+		rawAlphaService.BasePath = ep
+	}
+	c := &client{hc: hc, raw: rawService, rawBeta: rawBetaService, rawAlpha: rawAlphaService}
 	c.i = c
 
 	return c, nil
@@ -297,6 +314,22 @@ func (c *client) operationsWaitHelper(project, name string, getOperation operati
 // status response indicates the request should be attempted again or the
 // oauth Token is no longer valid.
 func (c *client) Retry(f func(opts ...googleapi.CallOption) (*compute.Operation, error), opts ...googleapi.CallOption) (op *compute.Operation, err error) {
+	for i := 1; i < 4; i++ {
+		op, err = f(opts...)
+		if err == nil {
+			return op, nil
+		}
+		if !shouldRetryWithWait(c.hc.Transport, err, i) {
+			return nil, err
+		}
+	}
+	return
+}
+
+// RetryAlpha invokes the given function, retrying it multiple times if the HTTP
+// status response indicates the request should be attempted again or the
+// oauth Token is no longer valid.
+func (c *client) RetryAlpha(f func(opts ...googleapi.CallOption) (*computeAlpha.Operation, error), opts ...googleapi.CallOption) (op *computeAlpha.Operation, err error) {
 	for i := 1; i < 4; i++ {
 		op, err = f(opts...)
 		if err == nil {
@@ -425,6 +458,7 @@ func (c *client) CreateInstance(project, zone string, i *compute.Instance) error
 	return nil
 }
 
+// CreateSubnetwork creates a GCE network.
 func (c *client) CreateNetwork(project string, n *compute.Network) error {
 	op, err := c.Retry(c.raw.Networks.Insert(project, n).Do)
 	if err != nil {
@@ -443,6 +477,45 @@ func (c *client) CreateNetwork(project string, n *compute.Network) error {
 	return nil
 }
 
+// CreateMachineImage creates a GCE machine image.
+func (c *client) CreateMachineImage(project string, m *computeAlpha.MachineImage) error {
+	op, err := c.RetryAlpha(c.rawAlpha.MachineImages.Insert(project, m).Do)
+	if err != nil {
+		return err
+	}
+
+	if err := c.i.globalOperationsWait(project, op.Name); err != nil {
+		return err
+	}
+
+	var createdMachineImage *computeAlpha.MachineImage
+	if createdMachineImage, err = c.i.GetMachineImage(project, m.Name); err != nil {
+		return err
+	}
+	*m = *createdMachineImage
+	return nil
+}
+
+// CreateSnapshot creates a GCE disk snapshot.
+func (c *client) CreateSnapshot(project, zone, disk string, s *compute.Snapshot) error {
+	op, err := c.Retry(c.raw.Disks.CreateSnapshot(project, zone, disk, s).Do)
+	if err != nil {
+		return err
+	}
+
+	if err := c.i.zoneOperationsWait(project, zone, op.Name); err != nil {
+		return err
+	}
+
+	var createdSnapshot *compute.Snapshot
+	if createdSnapshot, err = c.i.GetSnapshot(project, s.Name); err != nil {
+		return err
+	}
+	*s = *createdSnapshot
+	return nil
+}
+
+// CreateSubnetwork creates a GCE subnetwork.
 func (c *client) CreateSubnetwork(project, region string, n *compute.Subnetwork) error {
 	op, err := c.Retry(c.raw.Subnetworks.Insert(project, region, n).Do)
 	if err != nil {
@@ -494,6 +567,16 @@ func (c *client) DeleteFirewallRule(project, name string) error {
 // DeleteImage deletes a GCE image.
 func (c *client) DeleteImage(project, name string) error {
 	op, err := c.Retry(c.raw.Images.Delete(project, name).Do)
+	if err != nil {
+		return err
+	}
+
+	return c.i.globalOperationsWait(project, op.Name)
+}
+
+// DeleteMachineImage deletes a GCE machine image.
+func (c *client) DeleteMachineImage(project, name string) error {
+	op, err := c.RetryAlpha(c.rawAlpha.MachineImages.Delete(project, name).Do)
 	if err != nil {
 		return err
 	}
@@ -554,6 +637,16 @@ func (c *client) StopInstance(project, zone, name string) error {
 // DeleteNetwork deletes a GCE network.
 func (c *client) DeleteNetwork(project, name string) error {
 	op, err := c.Retry(c.raw.Networks.Delete(project, name).Do)
+	if err != nil {
+		return err
+	}
+
+	return c.i.globalOperationsWait(project, op.Name)
+}
+
+// DeleteSnapshot deletes a GCE snapshot.
+func (c *client) DeleteSnapshot(project, name string) error {
+	op, err := c.Retry(c.raw.Snapshots.Delete(project, name).Do)
 	if err != nil {
 		return err
 	}
@@ -840,6 +933,15 @@ func (c *client) GetImage(project, name string) (*compute.Image, error) {
 	return i, err
 }
 
+// GetMachineImage gets a GCE machine image.
+func (c *client) GetMachineImage(project, name string) (*computeAlpha.MachineImage, error) {
+	i, err := c.rawAlpha.MachineImages.Get(project, name).Do()
+	if shouldRetryWithWait(c.hc.Transport, err, 2) {
+		return c.rawAlpha.MachineImages.Get(project, name).Do()
+	}
+	return i, err
+}
+
 // GetImageFromFamily gets a GCE Image from an image family.
 func (c *client) GetImageFromFamily(project, family string) (*compute.Image, error) {
 	i, err := c.raw.Images.GetFromFamily(project, family).Do()
@@ -856,6 +958,30 @@ func (c *client) ListImages(project string, opts ...ListCallOption) ([]*compute.
 	call := c.raw.Images.List(project)
 	for _, opt := range opts {
 		call = opt.listCallOptionApply(call).(*compute.ImagesListCall)
+	}
+	for il, err := call.PageToken(pt).Do(); ; il, err = call.PageToken(pt).Do() {
+		if shouldRetryWithWait(c.hc.Transport, err, 2) {
+			il, err = call.PageToken(pt).Do()
+		}
+		if err != nil {
+			return nil, err
+		}
+		is = append(is, il.Items...)
+
+		if il.NextPageToken == "" {
+			return is, nil
+		}
+		pt = il.NextPageToken
+	}
+}
+
+// ListMachineImages gets a list of GCE machine images.
+func (c *client) ListMachineImages(project string, opts ...ListCallOption) ([]*computeAlpha.MachineImage, error) {
+	var is []*computeAlpha.MachineImage
+	var pt string
+	call := c.rawAlpha.MachineImages.List(project)
+	for _, opt := range opts {
+		call = opt.listCallOptionApply(call).(*computeAlpha.MachineImagesListCall)
 	}
 	for il, err := call.PageToken(pt).Do(); ; il, err = call.PageToken(pt).Do() {
 		if shouldRetryWithWait(c.hc.Transport, err, 2) {
@@ -904,6 +1030,39 @@ func (c *client) ListNetworks(project string, opts ...ListCallOption) ([]*comput
 		}
 		pt = nl.NextPageToken
 	}
+}
+
+// ListSnapshots gets a list of GCE snapshots.
+func (c *client) ListSnapshots(project string, opts ...ListCallOption) ([]*compute.Snapshot, error) {
+	var ns []*compute.Snapshot
+	var pt string
+	call := c.raw.Snapshots.List(project)
+	for _, opt := range opts {
+		call = opt.listCallOptionApply(call).(*compute.SnapshotsListCall)
+	}
+	for nl, err := call.PageToken(pt).Do(); ; nl, err = call.PageToken(pt).Do() {
+		if shouldRetryWithWait(c.hc.Transport, err, 2) {
+			nl, err = call.PageToken(pt).Do()
+		}
+		if err != nil {
+			return nil, err
+		}
+		ns = append(ns, nl.Items...)
+
+		if nl.NextPageToken == "" {
+			return ns, nil
+		}
+		pt = nl.NextPageToken
+	}
+}
+
+// GetSnapshot gets a GCE snapshot.
+func (c *client) GetSnapshot(project, name string) (*compute.Snapshot, error) {
+	n, err := c.raw.Snapshots.Get(project, name).Do()
+	if shouldRetryWithWait(c.hc.Transport, err, 2) {
+		return c.raw.Snapshots.Get(project, name).Do()
+	}
+	return n, err
 }
 
 // GetSubnetwork gets a GCE subnetwork.

@@ -22,10 +22,6 @@ import (
 	"time"
 )
 
-const (
-	defaultInterval = "10s"
-)
-
 // WaitForInstancesSignal is a Daisy WaitForInstancesSignal workflow step.
 type WaitForInstancesSignal []*InstanceSignal
 

@@ -33,11 +33,15 @@ import (
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/compute-image-tools/daisy/compute"
+	osconfig "github.com/GoogleCloudPlatform/osconfig/_internal/gapi-cloud-osconfig-go/cloud.google.com/go/osconfig/apiv1alpha1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
-const defaultTimeout = "10m"
+const (
+	defaultTimeout  = "10m"
+	defaultInterval = "10s"
+)
 
 func daisyBkt(ctx context.Context, client *storage.Client, project string) (string, dErr) {
 	dBkt := strings.Replace(project, ":", "-", -1) + "-daisy-bkt"
@@ -132,14 +136,18 @@ type Workflow struct {
 	ComputeClient      compute.Client  `json:"-"`
 	StorageClient      *storage.Client `json:"-"`
 	cloudLoggingClient *logging.Client
+	osconfigClient     *osconfig.Client
 
 	// Resource registries.
+	patchJobs       *patchJobRegistry
 	disks           *diskRegistry
 	forwardingRules *forwardingRuleRegistry
 	firewallRules   *firewallRuleRegistry
 	images          *imageRegistry
+	machineImages   *machineImageRegistry
 	instances       *instanceRegistry
 	networks        *networkRegistry
+	snapshots       *snapshotRegistry
 	subnetworks     *subnetworkRegistry
 	targetInstances *targetInstanceRegistry
 	objects         *objectRegistry
@@ -662,19 +670,40 @@ func New() *Workflow {
 	w.autovars = map[string]string{}
 
 	// Resource registries and cleanup.
+	w.patchJobs = newPatchJobRegistry(w)
 	w.disks = newDiskRegistry(w)
 	w.forwardingRules = newForwardingRuleRegistry(w)
 	w.firewallRules = newFirewallRuleRegistry(w)
 	w.images = newImageRegistry(w)
+	w.machineImages = newMachineImageRegistry(w)
 	w.instances = newInstanceRegistry(w)
 	w.networks = newNetworkRegistry(w)
+	w.snapshots = newSnapshotRegistry(w)
 	w.subnetworks = newSubnetworkRegistry(w)
 	w.objects = newObjectRegistry(w)
 	w.targetInstances = newTargetInstanceRegistry(w)
 	w.addCleanupHook(func() dErr {
 		w.instances.cleanup() // instances need to be done before disks/networks
-		w.images.cleanup()
-		w.disks.cleanup()
+
+		var wg sync.WaitGroup
+		wg.Add(4)
+		go func() {
+			defer wg.Done()
+			w.images.cleanup()
+		}()
+		go func() {
+			defer wg.Done()
+			w.machineImages.cleanup()
+		}()
+		go func() {
+			defer wg.Done()
+			w.snapshots.cleanup()
+		}()
+		go func() {
+			defer wg.Done()
+			w.disks.cleanup()
+		}()
+
 		w.forwardingRules.cleanup()
 		w.targetInstances.cleanup()
 		w.firewallRules.cleanup()

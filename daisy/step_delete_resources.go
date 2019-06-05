@@ -30,6 +30,7 @@ import (
 // DeleteResources deletes GCE/GCS resources.
 type DeleteResources struct {
 	Disks       []string `json:",omitempty"`
+	Snapshots   []string `json:",omitempty"`
 	Images      []string `json:",omitempty"`
 	Instances   []string `json:",omitempty"`
 	Networks    []string `json:",omitempty"`
@@ -41,6 +42,11 @@ func (d *DeleteResources) populate(ctx context.Context, s *Step) dErr {
 	for i, disk := range d.Disks {
 		if diskURLRgx.MatchString(disk) {
 			d.Disks[i] = extendPartialURL(disk, s.w.Project)
+		}
+	}
+	for i, snapshot := range d.Snapshots {
+		if snapshotURLRgx.MatchString(snapshot) {
+			d.Snapshots[i] = extendPartialURL(snapshot, s.w.Project)
 		}
 	}
 	for i, image := range d.Images {
@@ -116,6 +122,13 @@ func (d *DeleteResources) validate(ctx context.Context, s *Step) dErr {
 	// Disk checking.
 	for _, disk := range d.Disks {
 		if err := s.w.disks.regDelete(disk, s); d.checkError(err, s) != nil {
+			return err
+		}
+	}
+
+	// Snapshot checking.
+	for _, snapshot := range d.Snapshots {
+		if err := s.w.snapshots.regDelete(snapshot, s); d.checkError(err, s) != nil {
 			return err
 		}
 	}
@@ -237,6 +250,20 @@ func (d *DeleteResources) run(ctx context.Context, s *Step) dErr {
 			if err := w.images.delete(i); err != nil {
 				if err.Type() == resourceDNEError {
 					w.LogStepInfo(s.name, "DeleteResources", "WARNING: Error deleting image %q: %v", i, err)
+					return
+				}
+				e <- err
+			}
+		}(i)
+	}
+	for _, i := range d.Snapshots {
+		wg.Add(1)
+		go func(i string) {
+			defer wg.Done()
+			w.LogStepInfo(s.name, "DeleteResources", "Deleting snapshot %q.", i)
+			if err := w.snapshots.delete(i); err != nil {
+				if err.Type() == resourceDNEError {
+					w.LogStepInfo(s.name, "DeleteResources", "WARNING: Error deleting snapshot %q: %v", i, err)
 					return
 				}
 				e <- err
