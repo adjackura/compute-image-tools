@@ -1,0 +1,39 @@
+{
+  "name": "test-patch-jobs",
+  "project": "ajackura-dev",
+  "OAuthPath": "/usr/local/google/home/ajackura/Downloads/ajackura-dev-b94e513fa1f1.json",
+  "vars": {
+    "filter": {
+      "Required": true
+    }
+  },
+  "steps": {
+    "execute-job": {
+      "ExecutePatchJobs": [
+        {
+          "Name": "my-job",
+          "filter": "${filter}",
+          "patch_config": {
+            "retry_strategy": {
+              "enabled": true
+            },
+            "reboot_config": 2
+          },
+          "dry_run": true
+        }
+      ]
+    },
+    "await-job": {
+      "AwaitPatchJobs": [
+        {
+          "Name": "my-job"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "await-job": [
+      "execute-job"
+    ]
+  }
+}

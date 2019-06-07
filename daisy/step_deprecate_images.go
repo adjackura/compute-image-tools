@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 )
 
 // DeprecateImages is a Daisy DeprecateImage workflow step.

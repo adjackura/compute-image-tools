@@ -27,7 +27,7 @@ import (
 	"time"
 
 	daisyCompute "github.com/GoogleCloudPlatform/compute-image-tools/daisy/compute"
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 	"google.golang.org/api/googleapi"
 )
 
@@ -102,6 +102,10 @@ func (i *Instance) MarshalJSON() ([]byte, error) {
 func (i *Instance) populate(ctx context.Context, s *Step) dErr {
 	var errs dErr
 	i.Name, i.Zone, errs = i.Resource.populateWithZone(ctx, s, i.Name, i.Zone)
+	i.link = fmt.Sprintf("projects/%s/zones/%s/instances/%s", i.Project, i.Zone, i.Name)
+	if i.SourceMachineImage != "" {
+		return errs
+	}
 	i.Description = strOr(i.Description, fmt.Sprintf("Instance created by Daisy in workflow %q on behalf of %s.", s.w.Name, s.w.username))
 
 	errs = addErrs(errs, i.populateDisks(s.w))
@@ -109,7 +113,6 @@ func (i *Instance) populate(ctx context.Context, s *Step) dErr {
 	errs = addErrs(errs, i.populateMetadata(s.w))
 	errs = addErrs(errs, i.populateNetworks())
 	errs = addErrs(errs, i.populateScopes())
-	i.link = fmt.Sprintf("projects/%s/zones/%s/instances/%s", i.Project, i.Zone, i.Name)
 	return errs
 }
 
@@ -190,7 +193,7 @@ func (i *Instance) populateMetadata(w *Workflow) dErr {
 	}
 	for k, v := range i.Metadata {
 		vCopy := v
-		i.Instance.Metadata.Items = append(i.Instance.Metadata.Items, &compute.MetadataItems{Key: k, Value: &vCopy})
+		i.Instance.Metadata.Items = append(i.Instance.Metadata.Items, &compute.MetadataItems{Key: k, Value: vCopy})
 	}
 	return nil
 }
@@ -235,7 +238,10 @@ func (i *Instance) populateScopes() dErr {
 
 func (i *Instance) validate(ctx context.Context, s *Step) dErr {
 	pre := fmt.Sprintf("cannot create instance %q", i.daisyName)
-	errs := i.Resource.validateWithZone(ctx, s, i.Zone, pre)
+	errs := i.Resource.validateWithZone(ctx, s, path.Base(i.Zone), pre)
+	if i.SourceMachineImage != "" {
+		return errs
+	}
 	errs = addErrs(errs, i.validateDisks(s))
 	errs = addErrs(errs, i.validateMachineType(s.w.ComputeClient))
 	errs = addErrs(errs, i.validateNetworks(s))

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 )
 
 // ResizeDisks is a Daisy ResizeDisks workflow step.

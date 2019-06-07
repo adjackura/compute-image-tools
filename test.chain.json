@@ -1,0 +1,37 @@
+{
+  "Name": "test-chain",
+  "Project": "ajackura-dev",
+  "Chain": [
+    {
+      "Name": "gmi-1",
+      "Workflow": "./creategmi.wf.json",
+      "OnSuccess": "patch-job-1",
+      "Vars": {
+        "instance": "zones/us-central1-c/instances/s2019"
+      }
+    },
+    {
+      "Name": "patch-job-1",
+      "Workflow": "./patchjobrun.wf.json",
+      "OnSuccess": "gmi-1",
+      "Vars": {
+        "filter": "name=s2019"
+      }
+    },
+    {
+      "Name": "gmi-2",
+      "Workflow": "./creategmi.wf.json",
+      "OnSuccess": "patch-job-2",
+      "Vars": {
+        "instance": "zones/us-central1-a/instances/s2016"
+      }
+    },
+    {
+      "Name": "patch-job-2",
+      "Workflow": "./patchjobrun.wf.json",
+      "Vars": {
+        "filter": "name=s2016"
+      }
+    }
+  ]
+}

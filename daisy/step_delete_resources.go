@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"cloud.google.com/go/storage"
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
@@ -55,6 +55,8 @@ func (d *DeleteResources) populate(ctx context.Context, s *Step) dErr {
 		}
 	}
 	for i, instance := range d.Instances {
+		trim := strings.TrimSuffix(s.w.ComputeClient.BasePath(), "projects/")
+		instance = strings.TrimPrefix(instance, trim)
 		if instanceURLRgx.MatchString(instance) {
 			d.Instances[i] = extendPartialURL(instance, s.w.Project)
 		}

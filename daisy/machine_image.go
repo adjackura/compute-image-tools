@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 
 	daisyCompute "github.com/GoogleCloudPlatform/compute-image-tools/daisy/compute"
@@ -85,6 +86,8 @@ func (i *MachineImage) populate(ctx context.Context, s *Step) dErr {
 
 	i.Description = strOr(i.Description, fmt.Sprintf("Machine image created by Daisy in workflow %q on behalf of %s.", s.w.Name, s.w.username))
 
+	trim := strings.TrimSuffix(s.w.ComputeClient.BasePath(), "projects/")
+	i.SourceInstance = strings.TrimPrefix(i.SourceInstance, trim)
 	if instanceURLRgx.MatchString(i.SourceInstance) {
 		i.SourceInstance = extendPartialURL(i.SourceInstance, i.Project)
 	}

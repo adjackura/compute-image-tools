@@ -33,6 +33,7 @@ import (
 
 var (
 	oauth              = flag.String("oauth", "", "path to oauth json file, overrides what is set in workflow")
+	chained            = flag.Bool("chained", false, "parse workflow files as daisy chained workflows")
 	project            = flag.String("project", "", "project to run in, overrides what is set in workflow")
 	gcsPath            = flag.String("gcs_path", "", "GCS bucket to use, overrides what is set in workflow")
 	zone               = flag.String("zone", "", "zone to run in, overrides what is set in workflow")
@@ -193,12 +194,33 @@ func fmtWorkflow(path string) error {
 	return nil
 }
 
+func runChained(ctx context.Context, path string) error {
+	cw, err := daisy.NewChainedWorkflowFromFile(path)
+	if err != nil {
+		return err
+	}
+	if *print {
+		cw.Print(ctx)
+		return nil
+	}
+	return cw.Run(ctx)
+}
+
 func main() {
 	addFlags(os.Args[1:])
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
 		log.Fatal("Not enough args, first arg needs to be the path to a workflow.")
+	}
+
+	ctx := context.Background()
+
+	if *chained {
+		if err := runChained(ctx, flag.Args()[0]); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 
 	if *format {
@@ -210,8 +232,6 @@ func main() {
 		}
 		return
 	}
-
-	ctx := context.Background()
 
 	var ws []*daisy.Workflow
 	varMap := populateVars(*variables)

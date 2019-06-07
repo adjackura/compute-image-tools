@@ -19,7 +19,7 @@ import (
 	"path"
 	"sync"
 
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 )
 
 // AttachDisks is a Daisy AttachDisks workflow step.

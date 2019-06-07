@@ -16,12 +16,12 @@ package daisy
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/GoogleCloudPlatform/compute-image-tools/osconfig_tests/utils"
-
 	osconfigpb "github.com/GoogleCloudPlatform/osconfig/_internal/gapi-cloud-osconfig-go/google.golang.org/genproto/googleapis/cloud/osconfig/v1alpha1"
+	"google.golang.org/grpc/status"
 )
 
 // AwaitPatchJobs is a Daisy AwaitPatchJob workflow step.
@@ -67,6 +67,13 @@ func isPatchJobFailureState(state osconfigpb.PatchJob_State) bool {
 		state == osconfigpb.PatchJob_CANCELED
 }
 
+func getStatusFromError(err error) string {
+	if s, ok := status.FromError(err); ok {
+		return fmt.Sprintf("code: %q, message: %q, details: %q", s.Code(), s.Message(), s.Details())
+	}
+	return fmt.Sprintf("%v", err)
+}
+
 func (a *AwaitPatchJobs) run(ctx context.Context, s *Step) dErr {
 	var wg sync.WaitGroup
 	e := make(chan dErr)
@@ -90,7 +97,7 @@ func (a *AwaitPatchJobs) run(ctx context.Context, s *Step) dErr {
 					}
 					res, err := s.w.osconfigClient.GetPatchJob(ctx, req)
 					if err != nil {
-						e <- errf("error while fetching patch job %q: %s", name, utils.GetStatusFromError(err))
+						e <- errf("error while fetching patch job %q: %s", name, getStatusFromError(err))
 						return
 					}
 					s.w.patchJobs.setJob(aj.Name, res)

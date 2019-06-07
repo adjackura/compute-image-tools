@@ -1,0 +1,20 @@
+{
+  "name": "test-patch-jobs",
+  "project": "ajackura-dev",
+  "OAuthPath": "/usr/local/google/home/ajackura/Downloads/ajackura-dev-b94e513fa1f1.json",
+  "vars": {
+    "instance": {
+      "Required": true
+    }
+  },
+  "steps": {
+    "create-machine-image": {
+      "CreateMachineImages": [
+        {
+          "Name": "new-machine-image",
+          "SourceInstance": "${instance}"
+        }
+      ]
+    }
+  }
+}

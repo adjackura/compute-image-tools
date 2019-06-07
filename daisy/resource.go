@@ -54,6 +54,8 @@ func (r *Resource) populateWithGlobal(ctx context.Context, s *Step, name string)
 
 func (r *Resource) populateWithZone(ctx context.Context, s *Step, name, zone string) (string, string, dErr) {
 	errs := r.populateHelper(ctx, s, name)
+	trim := strings.TrimSuffix(s.w.ComputeClient.BasePath(), "projects/")
+	zone = strings.TrimPrefix(zone, trim)
 	return r.RealName, strOr(zone, s.w.Zone), errs
 }
 

@@ -1,0 +1,16 @@
+[
+    {
+        "Name": "zone-a",
+        "Project": "ajackura-dev",
+        "GCEFilter": "zone=\"https://www.googleapis.com/compute/alpha/projects/ajackura-dev/zones/us-central1-a\"",
+        "GMI": true,
+        "AutoRollback": false
+    },
+    {
+        "Name": "zone-c",
+        "Project": "ajackura-dev",
+        "GCEFilter": "zone=\"https://www.googleapis.com/compute/alpha/projects/ajackura-dev/zones/us-central1-c\"",
+        "GMI": true,
+        "AutoRollback": false
+    }
+]

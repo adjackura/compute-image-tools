@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	compute "google.golang.org/api/compute/v0.alpha"
 	computeAlpha "google.golang.org/api/compute/v0.alpha"
 	computeBeta "google.golang.org/api/compute/v0.beta"
-	"google.golang.org/api/compute/v1"
+
+	//"google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -80,6 +82,7 @@ type Client interface {
 	ListZones(project string, opts ...ListCallOption) ([]*compute.Zone, error)
 	ListRegions(project string, opts ...ListCallOption) ([]*compute.Region, error)
 	ListInstances(project, zone string, opts ...ListCallOption) ([]*compute.Instance, error)
+	AggregatedListInstances(project string, opts ...ListCallOption) ([]*compute.Instance, error)
 	ListDisks(project, zone string, opts ...ListCallOption) ([]*compute.Disk, error)
 	ListForwardingRules(project, zone string, opts ...ListCallOption) ([]*compute.ForwardingRule, error)
 	ListFirewallRules(project string, opts ...ListCallOption) ([]*compute.Firewall, error)
@@ -116,17 +119,29 @@ func (o OrderBy) listCallOptionApply(i interface{}) interface{} {
 		return c.OrderBy(string(o))
 	case *compute.ImagesListCall:
 		return c.OrderBy(string(o))
+	case *compute.MachineImagesListCall:
+		return c.OrderBy(string(o))
 	case *compute.MachineTypesListCall:
 		return c.OrderBy(string(o))
 	case *compute.ZonesListCall:
 		return c.OrderBy(string(o))
+	case *compute.RegionsListCall:
+		return c.OrderBy(string(o))
+	case *compute.ForwardingRulesListCall:
+		return c.OrderBy(string(o))
 	case *compute.InstancesListCall:
+		return c.OrderBy(string(o))
+	case *compute.InstancesAggregatedListCall:
 		return c.OrderBy(string(o))
 	case *compute.DisksListCall:
 		return c.OrderBy(string(o))
 	case *compute.NetworksListCall:
 		return c.OrderBy(string(o))
 	case *compute.SubnetworksListCall:
+		return c.OrderBy(string(o))
+	case *compute.SnapshotsListCall:
+		return c.OrderBy(string(o))
+	case *compute.TargetInstancesListCall:
 		return c.OrderBy(string(o))
 	}
 	return i
@@ -143,17 +158,29 @@ func (o Filter) listCallOptionApply(i interface{}) interface{} {
 		return c.Filter(string(o))
 	case *compute.ImagesListCall:
 		return c.Filter(string(o))
+	case *compute.MachineImagesListCall:
+		return c.Filter(string(o))
 	case *compute.MachineTypesListCall:
 		return c.Filter(string(o))
 	case *compute.ZonesListCall:
 		return c.Filter(string(o))
+	case *compute.RegionsListCall:
+		return c.Filter(string(o))
+	case *compute.ForwardingRulesListCall:
+		return c.Filter(string(o))
 	case *compute.InstancesListCall:
+		return c.Filter(string(o))
+	case *compute.InstancesAggregatedListCall:
 		return c.Filter(string(o))
 	case *compute.DisksListCall:
 		return c.Filter(string(o))
 	case *compute.NetworksListCall:
 		return c.Filter(string(o))
 	case *compute.SubnetworksListCall:
+		return c.Filter(string(o))
+	case *compute.TargetInstancesListCall:
+		return c.Filter(string(o))
+	case *compute.SnapshotsListCall:
 		return c.Filter(string(o))
 	}
 	return i
@@ -817,6 +844,32 @@ func (c *client) ListInstances(project, zone string, opts ...ListCallOption) ([]
 			return nil, err
 		}
 		is = append(is, il.Items...)
+
+		if il.NextPageToken == "" {
+			return is, nil
+		}
+		pt = il.NextPageToken
+	}
+}
+
+// AggregatedListInstances gets an aggregated list of GCE Instances.
+func (c *client) AggregatedListInstances(project string, opts ...ListCallOption) ([]*compute.Instance, error) {
+	var is []*compute.Instance
+	var pt string
+	call := c.raw.Instances.AggregatedList(project)
+	for _, opt := range opts {
+		call = opt.listCallOptionApply(call).(*compute.InstancesAggregatedListCall)
+	}
+	for il, err := call.PageToken(pt).Do(); ; il, err = call.PageToken(pt).Do() {
+		if shouldRetryWithWait(c.hc.Transport, err, 2) {
+			il, err = call.PageToken(pt).Do()
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range il.Items {
+			is = append(is, item.Instances...)
+		}
 
 		if il.NextPageToken == "" {
 			return is, nil

@@ -20,7 +20,8 @@ import (
 	"net/http/httptest"
 
 	computeBeta "google.golang.org/api/compute/v0.beta"
-	compute "google.golang.org/api/compute/v1"
+	//compute "google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v0.alpha"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
